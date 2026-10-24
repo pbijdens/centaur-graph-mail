@@ -1,0 +1,5 @@
+# Build output
+dist/
+
+# Local credentials
+secrets.txt
