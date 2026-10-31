@@ -1,0 +1,311 @@
+/* Centaur Graph Mail — Outlook calendar. Colors derive from the theme's text color so it fits light and dark themes. */
+
+.cgm-cal {
+	--cgm-muted: color-mix(in srgb, currentColor 60%, transparent);
+	--cgm-faint: color-mix(in srgb, currentColor 8%, transparent);
+	--cgm-line: color-mix(in srgb, currentColor 15%, transparent);
+	--cgm-accent: var(--wp--preset--color--primary, #2271b1);
+	box-sizing: border-box;
+}
+
+.cgm-cal *,
+.cgm-cal *::before,
+.cgm-cal *::after {
+	box-sizing: inherit;
+}
+
+.cgm-cal--notice p {
+	padding: 0.75em 1em;
+	border-left: 4px solid #dba617;
+	background: var(--cgm-faint);
+}
+
+/* Month grids */
+
+.cgm-cal__months {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 1.5em 2.5em;
+	margin-bottom: 2em;
+}
+
+.cgm-month {
+	flex: 1 1 15em;
+	max-width: 22em;
+}
+
+.cgm-month__title {
+	font-weight: 600;
+	margin-bottom: 0.4em;
+	text-transform: capitalize;
+}
+
+.cgm-month__grid {
+	width: 100%;
+	border-collapse: collapse;
+	table-layout: fixed;
+	margin: 0;
+	border: 0;
+	font-size: 0.9em;
+}
+
+.cgm-month__grid th,
+.cgm-month__grid td {
+	padding: 2px;
+	border: 0;
+	background: none;
+	text-align: center;
+}
+
+.cgm-month__grid th {
+	font-weight: 400;
+	font-size: 0.8em;
+	color: var(--cgm-muted);
+	text-transform: uppercase;
+}
+
+.cgm-month__day > a,
+.cgm-month__day > span {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	position: relative;
+	aspect-ratio: 1;
+	max-width: 2.4em;
+	margin: 0 auto;
+	border-radius: 50%;
+	line-height: 1;
+	color: inherit;
+	text-decoration: none;
+}
+
+.cgm-month__day.has-events > a {
+	font-weight: 700;
+	background: color-mix(in srgb, var(--cgm-accent) 14%, transparent);
+}
+
+.cgm-month__day.has-events > a::after {
+	content: "";
+	position: absolute;
+	bottom: 15%;
+	left: 50%;
+	width: 4px;
+	height: 4px;
+	margin-left: -2px;
+	border-radius: 50%;
+	background: var(--cgm-accent);
+}
+
+.cgm-month__day.has-events > a:hover,
+.cgm-month__day.has-events > a:focus-visible {
+	background: color-mix(in srgb, var(--cgm-accent) 28%, transparent);
+}
+
+.cgm-month__day.is-today > a,
+.cgm-month__day.is-today > span {
+	box-shadow: inset 0 0 0 2px var(--cgm-accent);
+}
+
+.cgm-month__day.is-past > span {
+	color: color-mix(in srgb, currentColor 30%, transparent);
+}
+
+/* Category legend */
+
+.cgm-legend {
+	flex-basis: 100%;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.3em 1.2em;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+	font-size: 0.85em;
+	color: var(--cgm-muted);
+}
+
+.cgm-legend li {
+	display: flex;
+	align-items: center;
+	gap: 0.4em;
+	margin: 0;
+}
+
+.cgm-legend .cgm-mark {
+	width: 0.8em;
+	height: 0.8em;
+	border-radius: 2px;
+}
+
+/* Day list */
+
+.cgm-day {
+	margin: 0 0 1.75em;
+	scroll-margin-top: 4em;
+}
+
+.cgm-day__heading {
+	display: flex;
+	align-items: baseline;
+	flex-wrap: wrap;
+	gap: 0.5em;
+	margin: 0 0 0.5em;
+	padding-bottom: 0.3em;
+	border-bottom: 1px solid var(--cgm-line);
+	font-size: 0.95rem;
+	font-weight: 600;
+	letter-spacing: 0.02em;
+	text-transform: uppercase;
+	color: var(--cgm-muted);
+}
+
+.cgm-day__badge {
+	padding: 0.1em 0.5em;
+	border-radius: 1em;
+	font-size: 0.75em;
+	letter-spacing: 0.04em;
+	color: #fff;
+	background: var(--cgm-accent);
+}
+
+.cgm-day__events {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.cgm-event {
+	display: grid;
+	grid-template-columns: auto 7.5em minmax(0, 1fr);
+	gap: 0 0.75em;
+	align-items: start;
+	margin: 0 0 0.35em;
+	padding: 0.45em 0.6em 0.45em 0;
+}
+
+.cgm-event__marks {
+	display: flex;
+	gap: 3px;
+	align-self: stretch;
+	min-width: 4px;
+}
+
+.cgm-mark {
+	display: inline-block;
+	width: 4px;
+	border-radius: 2px;
+	background: var(--cgm-color);
+	box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12);
+}
+
+.cgm-event__time {
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+	color: var(--cgm-muted);
+}
+
+.cgm-event__title {
+	font-weight: 600;
+	overflow-wrap: anywhere;
+}
+
+.cgm-event__location {
+	margin-top: 0.1em;
+	font-size: 0.85em;
+	color: var(--cgm-muted);
+	overflow-wrap: anywhere;
+}
+
+/* Categories as tags, in the category's marker color with black or white text picked on the server. */
+.cgm-event__tags {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.3em;
+	margin: 0.3em 0 0;
+	padding: 0;
+	list-style: none;
+}
+
+.cgm-tag {
+	margin: 0;
+	padding: 0.1em 0.6em;
+	border-radius: 1em;
+	font-size: 0.75em;
+	font-weight: 600;
+	letter-spacing: 0.02em;
+	line-height: 1.5;
+	color: var(--cgm-tag-text, inherit);
+	background: var(--cgm-color);
+	box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12);
+}
+
+.cgm-event__desc {
+	margin-top: 0.15em;
+	font-size: 0.85em;
+	color: var(--cgm-muted);
+	overflow-wrap: anywhere;
+}
+
+.cgm-event--allday {
+	border-radius: 4px;
+	background: color-mix(in srgb, var(--cgm-accent) 12%, transparent);
+}
+
+.cgm-event--allday .cgm-event__time {
+	color: inherit;
+	font-weight: 600;
+}
+
+.cgm-event__allday,
+.cgm-event__span {
+	display: block;
+}
+
+.cgm-event__span {
+	font-size: 0.8em;
+	font-weight: 400;
+	color: var(--cgm-muted);
+}
+
+.cgm-cal__empty {
+	color: var(--cgm-muted);
+}
+
+.cgm-cal .screen-reader-text {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+	clip: rect(0 0 0 0);
+	clip-path: inset(50%);
+	white-space: nowrap;
+}
+
+/* Narrow screens: time above the title, marks spanning both rows. */
+@media (max-width: 480px) {
+	.cgm-event {
+		grid-template-columns: auto minmax(0, 1fr);
+		gap: 0.1em 0.6em;
+	}
+
+	.cgm-event__marks {
+		grid-row: span 2;
+	}
+
+	.cgm-event__time {
+		font-size: 0.85em;
+	}
+
+	.cgm-event__span {
+		display: inline;
+		margin-left: 0.5em;
+	}
+
+	.cgm-event__allday {
+		display: inline;
+	}
+
+	.cgm-month {
+		max-width: none;
+	}
+}

@@ -1,0 +1,39 @@
+{
+	"$schema": "https://schemas.wp.org/trunk/block.json",
+	"apiVersion": 3,
+	"name": "centaur/outlook-calendar",
+	"title": "Outlook calendar",
+	"category": "widgets",
+	"icon": "calendar-alt",
+	"description": "Upcoming appointments from the Outlook calendars selected on Settings → Graph Mail.",
+	"keywords": [ "outlook", "agenda", "events", "microsoft" ],
+	"textdomain": "centaur-graph-mail",
+	"attributes": {
+		"showMonths": {
+			"type": "boolean",
+			"default": true
+		},
+		"showDescription": {
+			"type": "boolean",
+			"default": true
+		},
+		"showLocation": {
+			"type": "boolean",
+			"default": true
+		},
+		"showCategories": {
+			"type": "boolean",
+			"default": true
+		}
+	},
+	"supports": {
+		"html": false,
+		"align": [ "wide", "full" ],
+		"spacing": {
+			"margin": true,
+			"padding": true
+		}
+	},
+	"editorScript": "file:./index.js",
+	"style": "centaur-graph-mail-calendar"
+}

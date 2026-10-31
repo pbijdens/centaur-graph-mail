@@ -45,6 +45,14 @@ final class Admin {
 				'sanitize_callback' => array( Settings::class, 'sanitize' ),
 			)
 		);
+		register_setting(
+			Calendar::OPTION_GROUP,
+			Calendar::OPTION,
+			array(
+				'type'              => 'array',
+				'sanitize_callback' => array( Calendar::class, 'sanitize' ),
+			)
+		);
 	}
 
 	public static function notices(): void {
@@ -213,6 +221,154 @@ final class Admin {
 		printf( '<button type="submit" class="%s">%s</button></form>', esc_attr( $class ), esc_html( $label ) );
 	}
 
+	/** Delegated Microsoft Graph permissions the app registration needs, with what each is used for. */
+	private static function permissions(): array {
+		return array(
+			'User.Read'             => __( 'Read the profile of the account that signs in.', 'centaur-graph-mail' ),
+			'Mail.Send'             => __( 'Send e-mail as the signed-in account.', 'centaur-graph-mail' ),
+			'Mail.Send.Shared'      => __( 'Send e-mail as another (shared) mailbox the account has Send As rights on.', 'centaur-graph-mail' ),
+			'Calendars.Read'        => __( 'Read the calendars of the signed-in account.', 'centaur-graph-mail' ),
+			'Calendars.Read.Shared' => __( 'Read calendars of other users and shared mailboxes the account has access to.', 'centaur-graph-mail' ),
+			'offline_access'        => __( 'Keep working when nobody is signed in (refresh token).', 'centaur-graph-mail' ),
+		);
+	}
+
+	private static function render_permissions(): void {
+		$connected = Auth::is_connected();
+		?>
+		<table class="widefat striped" style="max-width:900px">
+			<thead>
+				<tr>
+					<th style="width:220px"><?php esc_html_e( 'Delegated permission', 'centaur-graph-mail' ); ?></th>
+					<th><?php esc_html_e( 'Used for', 'centaur-graph-mail' ); ?></th>
+					<th style="width:120px"><?php esc_html_e( 'Granted', 'centaur-graph-mail' ); ?></th>
+				</tr>
+			</thead>
+			<tbody>
+				<?php foreach ( self::permissions() as $scope => $purpose ) : ?>
+				<tr>
+					<td><code><?php echo esc_html( $scope ); ?></code></td>
+					<td><?php echo esc_html( $purpose ); ?></td>
+					<td>
+						<?php
+						if ( ! $connected ) {
+							echo '—';
+						} elseif ( 'offline_access' === $scope || Auth::has_scope( $scope ) ) {
+							echo '✅';
+						} else {
+							echo '❌ ' . esc_html__( 'reconnect', 'centaur-graph-mail' );
+						}
+						?>
+					</td>
+				</tr>
+				<?php endforeach; ?>
+			</tbody>
+		</table>
+		<p class="description"><?php echo wp_kses( __( 'Add these under <code>API permissions → Add a permission → Microsoft Graph → Delegated permissions</code> of the app registration. If users can\'t consent themselves in your tenant, also click <em>Grant admin consent</em>. <code>openid</code> and <code>profile</code> are requested automatically. After adding a permission, sign in again in step 2.', 'centaur-graph-mail' ), array( 'code' => array(), 'em' => array() ) ); ?></p>
+		<?php
+	}
+
+	private static function render_calendar(): void {
+		$settings = Calendar::all();
+		$name     = Calendar::OPTION;
+		$account  = Auth::connection()['account']['upn'] ?? '';
+		$selected = array();
+		foreach ( $settings['calendars'] as $calendar ) {
+			$selected[ Calendar::calendar_key( $calendar ) ] = $calendar;
+		}
+
+		if ( ! Auth::is_connected() ) {
+			echo '<p>' . esc_html__( 'Sign in with Microsoft (step 2) to choose calendars.', 'centaur-graph-mail' ) . '</p>';
+		} elseif ( ! Calendar::is_ready() ) {
+			echo '<div class="notice notice-warning inline"><p>' . esc_html__( 'The current Microsoft sign-in does not include the calendar permissions. Add Calendars.Read and Calendars.Read.Shared to the app registration (see step 1), then click "Reconnect with Microsoft" in step 2.', 'centaur-graph-mail' ) . '</p></div>';
+		}
+
+		$checkbox = static function ( array $calendar, bool $checked, string $note ) use ( $name ) {
+			printf(
+				'<label style="display:block;margin:0 0 4px"><input type="checkbox" name="%s[calendars][]" value="%s" %s> %s%s</label>',
+				esc_attr( $name ),
+				esc_attr( wp_json_encode( array_intersect_key( $calendar, array_flip( array( 'mailbox', 'id', 'name' ) ) ) ) ),
+				checked( $checked, true, false ),
+				esc_html( $calendar['name'] ),
+				$note ? ' <span class="description">(' . esc_html( $note ) . ')</span>' : ''
+			);
+		};
+		?>
+		<form method="post" action="options.php">
+			<?php settings_fields( Calendar::OPTION_GROUP ); ?>
+			<table class="form-table" role="presentation">
+				<tr>
+					<th scope="row"><?php esc_html_e( 'Calendars', 'centaur-graph-mail' ); ?></th>
+					<td>
+						<?php
+						$available = Calendar::is_ready() ? Calendar::available_calendars() : array();
+						foreach ( $available as $mailbox => $calendars ) {
+							$mailbox_name = '' === $mailbox ? $account : $mailbox;
+							printf( '<p style="margin-bottom:4px"><strong>%s</strong></p>', esc_html( $mailbox_name ) );
+							if ( is_wp_error( $calendars ) ) {
+								echo '<p class="description">❌ ' . esc_html( $calendars->get_error_message() ) . '</p>';
+								continue;
+							}
+							if ( ! $calendars ) {
+								echo '<p class="description">' . esc_html__( 'No calendars found.', 'centaur-graph-mail' ) . '</p>';
+							}
+							foreach ( $calendars as $calendar ) {
+								$key  = Calendar::calendar_key( $calendar );
+								$note = '';
+								if ( $calendar['owner'] && strtolower( $calendar['owner'] ) !== strtolower( $mailbox_name ) ) {
+									/* translators: %s: calendar owner */
+									$note = sprintf( __( 'shared by %s', 'centaur-graph-mail' ), $calendar['owner'] );
+								} elseif ( $calendar['default'] ) {
+									$note = __( 'default', 'centaur-graph-mail' );
+								}
+								$checkbox( $calendar, isset( $selected[ $key ] ), $note );
+								unset( $selected[ $key ] );
+							}
+						}
+						// Keep selected calendars that can't be listed right now, so saving doesn't silently drop them.
+						if ( $selected ) {
+							echo '<p style="margin-bottom:4px"><strong>' . esc_html__( 'Not found in the current listing', 'centaur-graph-mail' ) . '</strong></p>';
+							foreach ( $selected as $calendar ) {
+								$checkbox( $calendar, true, $calendar['mailbox'] );
+							}
+						}
+						?>
+						<p class="description"><?php esc_html_e( 'Appointments from all selected calendars are combined into one list.', 'centaur-graph-mail' ); ?></p>
+					</td>
+				</tr>
+				<tr>
+					<th scope="row"><label for="cgm_mailboxes"><?php esc_html_e( 'Other mailboxes', 'centaur-graph-mail' ); ?></label></th>
+					<td>
+						<textarea id="cgm_mailboxes" class="large-text code" rows="3" name="<?php echo esc_attr( $name ); ?>[mailboxes]"><?php echo esc_textarea( implode( "\n", $settings['mailboxes'] ) ); ?></textarea>
+						<p class="description"><?php esc_html_e( 'One address per line: users or shared mailboxes whose calendars the signed-in account may read but which are not listed above. Save to load their calendars.', 'centaur-graph-mail' ); ?></p>
+					</td>
+				</tr>
+				<tr>
+					<th scope="row"><label for="cgm_ignore"><?php esc_html_e( 'Ignore appointments matching', 'centaur-graph-mail' ); ?></label></th>
+					<td>
+						<textarea id="cgm_ignore" class="large-text code" rows="5" name="<?php echo esc_attr( $name ); ?>[ignore]"><?php echo esc_textarea( implode( "\n", $settings['ignore'] ) ); ?></textarea>
+						<p class="description"><?php echo wp_kses( __( 'One regular expression per line, without delimiters, case-insensitive. An appointment is hidden when its title, description or one of its categories matches any of them. Examples: <code>^private</code>, <code>\[intern\]</code>, <code>^(board|staff) meeting$</code>.', 'centaur-graph-mail' ), array( 'code' => array() ) ); ?></p>
+					</td>
+				</tr>
+				<tr>
+					<th scope="row"><?php esc_html_e( 'Options', 'centaur-graph-mail' ); ?></th>
+					<td>
+						<label><input type="checkbox" name="<?php echo esc_attr( $name ); ?>[hide_private]" value="1" <?php checked( $settings['hide_private'] ); ?>> <?php esc_html_e( 'Hide appointments marked private', 'centaur-graph-mail' ); ?></label><br>
+						<label><?php esc_html_e( 'Refresh from Outlook every', 'centaur-graph-mail' ); ?> <input type="number" min="1" max="1440" class="small-text" name="<?php echo esc_attr( $name ); ?>[cache_minutes]" value="<?php echo esc_attr( (string) $settings['cache_minutes'] ); ?>"> <?php esc_html_e( 'minutes', 'centaur-graph-mail' ); ?></label>
+					</td>
+				</tr>
+				<tr>
+					<th scope="row"><?php esc_html_e( 'Usage', 'centaur-graph-mail' ); ?></th>
+					<td>
+						<p><?php echo wp_kses( __( 'Add the <em>Outlook calendar</em> block to a page, or use the shortcode <code>[centaur_calendar]</code>. <code>[centaur_calendar months="no"]</code> leaves out the month calendars.', 'centaur-graph-mail' ), array( 'code' => array(), 'em' => array() ) ); ?></p>
+					</td>
+				</tr>
+			</table>
+			<?php submit_button( __( 'Save calendar settings', 'centaur-graph-mail' ) ); ?>
+		</form>
+		<?php
+	}
+
 	public static function render(): void {
 		if ( ! current_user_can( self::CAPABILITY ) ) {
 			return;
@@ -321,12 +477,15 @@ final class Admin {
 			</form>
 			<?php self::action_form( 'centaur_graph_mail_test_app', __( 'Test application credentials', 'centaur-graph-mail' ) ); ?>
 
-			<h2><?php esc_html_e( '2. Grant Mail.Send', 'centaur-graph-mail' ); ?></h2>
+			<h3><?php esc_html_e( 'API permissions', 'centaur-graph-mail' ); ?></h3>
+			<?php self::render_permissions(); ?>
+
+			<h2><?php esc_html_e( '2. Sign in with Microsoft', 'centaur-graph-mail' ); ?></h2>
 			<p>
 				<?php
 				printf(
 					/* translators: %s: sender mailbox */
-					esc_html__( 'Sign in with a Microsoft 365 account that may send e-mail as %s. You will be asked to consent to the delegated permissions Mail.Send and Mail.Send.Shared; WordPress keeps a refresh token so mail keeps working when you are logged out.', 'centaur-graph-mail' ),
+					esc_html__( 'Sign in with a Microsoft 365 account that may send e-mail as %s. You will be asked to consent to the delegated permissions listed above; WordPress keeps a refresh token so mail keeps working when you are logged out.', 'centaur-graph-mail' ),
 					'<code>' . esc_html( Settings::sender() ?: '…' ) . '</code>'
 				);
 				?>
@@ -350,6 +509,9 @@ final class Admin {
 				)
 			);
 			?>
+
+			<h2><?php esc_html_e( '4. Outlook calendar', 'centaur-graph-mail' ); ?></h2>
+			<?php self::render_calendar(); ?>
 		</div>
 		<?php
 	}

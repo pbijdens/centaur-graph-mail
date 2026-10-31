@@ -20,7 +20,10 @@ final class Auth {
 	private const STATE_PREFIX     = 'cgm_';
 	private const STATE_TTL        = 15 * MINUTE_IN_SECONDS;
 
-	/** Delegated scopes requested from the signed-in user. Mail.Send.Shared covers sending as another mailbox. */
+	/**
+	 * Delegated scopes requested from the signed-in user. Mail.Send.Shared covers sending as another mailbox,
+	 * Calendars.Read.Shared reading calendars of other users and shared mailboxes.
+	 */
 	public const SCOPES = array(
 		'openid',
 		'profile',
@@ -28,7 +31,14 @@ final class Auth {
 		'https://graph.microsoft.com/User.Read',
 		'https://graph.microsoft.com/Mail.Send',
 		'https://graph.microsoft.com/Mail.Send.Shared',
+		'https://graph.microsoft.com/Calendars.Read',
+		'https://graph.microsoft.com/Calendars.Read.Shared',
 	);
+
+	/** Scopes the plugin can work without; a connection made before they were added keeps sending mail. */
+	public const CALENDAR_SCOPES = array( 'Calendars.Read', 'Calendars.Read.Shared' );
+
+	private const OIDC_SCOPES = array( 'openid', 'profile', 'offline_access' );
 
 	/**
 	 * Registered as the Web redirect URI of the Entra app. admin-post.php without an "action"
@@ -119,8 +129,7 @@ final class Auth {
 			return new WP_Error( 'cgm_token', __( 'No refresh token was returned. Make sure offline_access is allowed for this app.', 'centaur-graph-mail' ) );
 		}
 
-		$granted = array_map( 'strtolower', explode( ' ', (string) ( $tokens['scope'] ?? '' ) ) );
-		if ( ! in_array( 'https://graph.microsoft.com/mail.send', $granted, true ) && ! in_array( 'mail.send', $granted, true ) ) {
+		if ( ! in_array( 'mail.send', self::parse_scopes( (string) ( $tokens['scope'] ?? '' ) ), true ) ) {
 			return new WP_Error( 'cgm_scope', __( 'Mail.Send was not granted. Ask an administrator to allow user consent for Mail.Send or grant it for the organization.', 'centaur-graph-mail' ) );
 		}
 
@@ -195,7 +204,7 @@ final class Auth {
 			array(
 				'grant_type'    => 'refresh_token',
 				'refresh_token' => $refresh,
-				'scope'         => implode( ' ', self::SCOPES ),
+				'scope'         => implode( ' ', self::refresh_scopes( $connection ) ),
 			)
 		);
 
@@ -220,6 +229,45 @@ final class Auth {
 
 		self::cache_access_token( $tokens );
 		return $tokens['access_token'];
+	}
+
+	/** @return string[] Lower-case scope names without the Graph resource prefix. */
+	private static function parse_scopes( string $scope ): array {
+		$names = array();
+		foreach ( preg_split( '/\s+/', strtolower( trim( $scope ) ) ) as $name ) {
+			if ( '' !== $name ) {
+				$names[] = str_replace( 'https://graph.microsoft.com/', '', $name );
+			}
+		}
+		return $names;
+	}
+
+	/** @return string[] Scopes granted to the stored connection, as returned by parse_scopes(). */
+	public static function granted_scopes(): array {
+		return self::parse_scopes( (string) ( self::connection()['scope'] ?? '' ) );
+	}
+
+	public static function has_scope( string $scope ): bool {
+		return in_array( strtolower( $scope ), self::granted_scopes(), true );
+	}
+
+	/**
+	 * Requesting a scope that was never consented fails the refresh with invalid_grant, which would
+	 * disconnect a working mail setup after an upgrade. Only ask for what the connection was granted.
+	 */
+	private static function refresh_scopes( array $connection ): array {
+		$granted = self::parse_scopes( (string) ( $connection['scope'] ?? '' ) );
+		if ( ! $granted ) {
+			return self::SCOPES;
+		}
+		return array_values(
+			array_filter(
+				self::SCOPES,
+				static function ( string $scope ) use ( $granted ) {
+					return in_array( $scope, self::OIDC_SCOPES, true ) || in_array( self::parse_scopes( $scope )[0], $granted, true );
+				}
+			)
+		);
 	}
 
 	public static function keepalive(): void {

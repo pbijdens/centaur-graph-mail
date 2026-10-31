@@ -453,7 +453,9 @@ final class Mailer {
 
 		$message = sprintf( 'Microsoft Graph HTTP %d%s%s', $code, $error ? " $error" : '', $text ? ": $text" : '' );
 
-		if ( 'ErrorSendAsDenied' === $error || ( 403 === $code && str_contains( strtolower( $error . $text ), 'access' ) ) ) {
+		// With delegated tokens Exchange answers 404 ErrorItemNotFound, not 403, when the signed-in account cannot open the sender mailbox.
+		$no_mailbox_access = 404 === $code && 'ErrorItemNotFound' === $error;
+		if ( 'ErrorSendAsDenied' === $error || $no_mailbox_access || ( 403 === $code && str_contains( strtolower( $error . $text ), 'access' ) ) ) {
 			$account  = Auth::connection()['account']['upn'] ?? '';
 			$message .= ' ' . sprintf(
 				/* translators: 1: connected account, 2: sender mailbox */
