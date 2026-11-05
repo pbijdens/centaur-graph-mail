@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       Centaur Graph Mail
  * Description:       Sends all WordPress e-mail through Microsoft Graph (Exchange Online) as a configured mailbox, using delegated Mail.Send consent from a signed-in Entra ID user, and shows Outlook calendars with a block or the [centaur_calendar] shortcode.
- * Version:           1.1.2
+ * Version:           1.2.0
  * Requires at least: 6.9
  * Requires PHP:      8.1
  * Author:            Pieter-Bas IJdens
@@ -12,7 +12,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'CENTAUR_GRAPH_MAIL_VERSION', '1.1.2' );
+define( 'CENTAUR_GRAPH_MAIL_VERSION', '1.2.0' );
 define( 'CENTAUR_GRAPH_MAIL_FILE', __FILE__ );
 define( 'CENTAUR_GRAPH_MAIL_DIR', plugin_dir_path( __FILE__ ) );
 

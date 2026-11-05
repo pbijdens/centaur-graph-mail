@@ -1,0 +1,67 @@
+name: Build plugin
+
+# Builds the installable plugin ZIP and publishes it as a GitHub release.
+# Version: major.minor from the plugin header, patch = GitHub run number.
+# The version is only stamped into the files inside the build; nothing is committed back.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-plugin
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      MAIN_FILE: centaur-graph-mail/centaur-graph-mail.php
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set version number
+        id: version
+        shell: bash
+        env:
+          BUILD: ${{ github.run_number }}
+        run: |
+          set -euo pipefail
+          current=$(sed -n -E 's/^\s*\*\s*Version:\s*(\S+).*/\1/p' "$MAIN_FILE" | head -n1)
+          if [[ ! "$current" =~ ^([0-9]+)\.([0-9]+)(\.[0-9]+)?$ ]]; then
+            echo "::error::Version '$current' in $MAIN_FILE is not MAJOR.MINOR[.PATCH]"; exit 1
+          fi
+          version="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.${BUILD}"
+
+          sed -i -E "s/^(\s*\*\s*Version:\s*)\S+/\1${version}/" "$MAIN_FILE"
+          sed -i -E "s/(define\(\s*'CENTAUR_GRAPH_MAIL_VERSION',\s*')[^']+(')/\1${version}\2/" "$MAIN_FILE"
+          grep -q "Version:           ${version}" "$MAIN_FILE"
+          grep -q "'CENTAUR_GRAPH_MAIL_VERSION', '${version}'" "$MAIN_FILE"
+
+          echo "Version $version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Build ZIP
+        shell: pwsh
+        run: ./build-zip.ps1
+
+      - name: Upload ZIP as artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: centaur-graph-mail-${{ steps.version.outputs.version }}
+          path: dist/centaur-graph-mail-${{ steps.version.outputs.version }}.zip
+          if-no-files-found: error
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          gh release create "v${VERSION}" \
+            "dist/centaur-graph-mail-${VERSION}.zip" \
+            --target "${{ github.sha }}" \
+            --title "Centaur Graph Mail ${VERSION}" \
+            --generate-notes
